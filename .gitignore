@@ -1,0 +1,37 @@
+# Ignore object files
+*.o
+
+# Ignore compiled files
+*.out
+*.exe
+
+# Ignore CUDA compiled files
+*.cu.out
+*.ptx
+
+# Ignore build directories
+build/
+Debug/
+Release/
+
+# Ignore Visual Studio Code settings
+.vscode/
+
+# Ignore other files that may contain sensitive information or build artifacts
+*.log
+*.suo
+*.user
+*.aps
+*.pch
+*.vspscc
+*_i.c
+*_p.c
+*.ncb
+*.sdf
+*.opensdf
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+__pycache__/
+PAMAP2_Dataset/
+linalg/
