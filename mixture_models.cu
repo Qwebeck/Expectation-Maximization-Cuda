@@ -3,10 +3,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "cpuDiagamma.c"
 #include <math.h>
 #include "mixture_models.h"
 #include "utils.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include "linalg/eigen.h"
+
 /*
 TODO:
 3. implement c sequential code [x]
@@ -63,9 +66,6 @@ reimplement this https://numpy.org/doc/stable/reference/generated/numpy.linalg.e
 
 --- can we use cublas?
 */
-#include <stdio.h>
-#include <stdlib.h>
-#include "linalg/eigen.h"
 
 #define TOL 1e-6
 #define MAX_ITER 10000
@@ -81,328 +81,276 @@ int main(int argc, char **argv)
     int max_iter = atoi(argv[7]);
     double *csv_contet = read_csv(filename, row_count, D);
 
-    matrix *matrix = matrix_from_array(csv_contet, row_count, D);
+    matrix *data = matrix_from_array(csv_contet, row_count, D);
 
-    double *means;
-    double *covs;
-    double *weights;
+    matrix *means;
+    matrix **covs;
+    vector *weights;
     for (int i = 0; i < max_iter; i++)
     {
-        EM(matrix, n_components, &means, &covs, &weights);
+        EM(data, n_components, &means, &covs, &weights);
     }
-    store_csv(means_fname, means, n_components, D);
-    store_csv(covs_fname, covs, n_components, D * D);
+
+    double means_array[n_components * D];
+    for (int i = 0; i < n_components; i++)
+    {
+        for (int j = 0; j < D; j++)
+        {
+            means_array[i * D + j] = MATRIX_IDX_INTO(means, i, j);
+        }
+    }
+    store_csv(means_fname, means_array, n_components, D);
+    double covs_array[n_components * D * D];
+    for (int i = 0; i < n_components; i++)
+    {
+        for (int j = 0; j < D; j++)
+        {
+            for (int k = 0; k < D; k++)
+            {
+                covs_array[i * D * D + j * D + k] = MATRIX_IDX_INTO(covs[i], j, k);
+            }
+        }
+    }
+    store_csv(covs_fname, covs_array, n_components, D * D);
 
     return 0;
 }
 
-void EM(matrix *data, int n_components, double **mixture_means = NULL, double **mixture_covs = NULL, double **mixture_weights = NULL)
+void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixture_covs, vector **mixture_weights)
 {
-    double *means = mixture_means == NULL ? NULL : *mixture_means;
+    matrix *means = mixture_means == NULL ? NULL : *mixture_means;
 
     if (means == NULL)
     {
-        means = init_array(n_components * data->n_col, 1.0 / n_components);
-        mixture_means = &means;
-    }
-    double *covs = mixture_covs == NULL ? NULL : *mixture_covs;
-    if (covs == NULL)
-    {
-        covs = init_array(n_components * data->n_col * data->n_col, 0);
+        means = matrix_new(n_components, data->n_col);
         for (int i = 0; i < n_components; i++)
         {
             for (int j = 0; j < data->n_col; j++)
             {
-                covs[i * data->n_col * data->n_col + j * data->n_col + j] = 1.0;
+                MATRIX_IDX_INTO(means, i, j) = MATRIX_IDX_INTO(data, i, j);
+            }
+        }
+        mixture_means = &means;
+    }
+    matrix **covs = mixture_covs == NULL ? NULL : *mixture_covs;
+    if (covs == NULL)
+    {
+        covs = init_array(n_components, matrix_zeros(data->n_col, data->n_col));
+        for (int i = 0; i < n_components; i++)
+        {
+            for (int j = 0; j < data->n_col; j++)
+            {
+                MATRIX_IDX_INTO(covs[i], j, j) = 1.0;
             }
         }
         mixture_covs = &covs;
     }
 
-    double *weights = mixture_weights == NULL ? NULL : *mixture_weights;
+    vector *weights = mixture_weights == NULL ? NULL : *mixture_weights;
     if (weights == NULL)
     {
-        weights = init_array(n_components, 1.0 / n_components);
+        weights = vector_new(n_components);
+        for (int i = 0; i < n_components; i++)
+        {
+            VECTOR_IDX_INTO(weights, i) = 1.0 / n_components;
+        }
         mixture_weights = &weights;
     }
 
     // expectation step
-    double *responsibilities = init_array(data->n_row * n_components, 0);
-    for (int j = 0; j < n_components; j++)
-    {
-        for (int i = 0; i < data->n_row; i++)
-        {
-            responsibilities[i * n_components + j] = weights[j] * pdf(matrix_row_view(data, i),
-                                                                      &means[j * data->n_col], &covs[j * data->n_col * data->n_col], data->n_col);
-        }
+    matrix *responsibilities = matrix_zeros(data->n_row, n_components);
 
+    for (int weight_idx = 0; weight_idx < n_components; weight_idx++)
+    {
+        vector *probabilities = pdf(data, matrix_column_copy(means, weight_idx), covs[weight_idx]);
         for (int i = 0; i < data->n_row; i++)
         {
-            responsibilities[i * n_components + j] /= sum(&responsibilities[i * n_components], n_components);
+            MATRIX_IDX_INTO(responsibilities, i, weight_idx) = VECTOR_IDX_INTO(weights, weight_idx) * VECTOR_IDX_INTO(probabilities, i);
+        }
+    }
+
+    for (int i = 0; i < data->n_row; i++)
+    {
+        double sum = 0;
+        for (int j = 0; j < n_components; j++)
+        {
+            sum += VECTOR_IDX_INTO(responsibilities, i * n_components + j);
+        }
+        for (int j = 0; j < n_components; j++)
+        {
+            MATRIX_IDX_INTO(responsibilities, n_components, j) /= sum;
         }
     }
 
     // maximization step
-    double *sum_responsibilities = init_array(n_components, 0);
+    vector *sum_responsibilities = vector_zeros(n_components);
     for (int j = 0; j < n_components; j++)
     {
         for (int i = 0; i < data->n_row; i++)
         {
-            sum_responsibilities[j] += responsibilities[i * n_components + j] / data->n_row;
+            VECTOR_IDX_INTO(sum_responsibilities, j) += MATRIX_IDX_INTO(responsibilities, i, j) / data->n_row;
         }
     }
 
-    means = matrix_multiply(responsibilities, sum_responsibilities, data->n_row, n_components, n_components, 1);
-
-    for (int i = 0; i < n_components; ++i)
+    for (int i = 0; i < weights->length; i++)
     {
-        double *temp = init_array(data->n_row * data->n_col, 0);
-        for (int i = 0; i < data->n_row; i++)
+        VECTOR_IDX_INTO(weights, i) = VECTOR_IDX_INTO(sum_responsibilities, i) / data->n_row;
+    }
+
+    means = matrix_multiply(matrix_transpose(responsibilities), data);
+    for (int i = 0; i < data->n_row; i++)
+    {
+        for (int j = 0; j < data->n_col; j++)
         {
-            for (int j = 0; j < data->n_col; j++)
+            MATRIX_IDX_INTO(means, i, j) /= VECTOR_IDX_INTO(sum_responsibilities, i);
+        }
+    }
+    mixture_means = &means;
+
+    for (int component = 0; component < n_components; component++)
+    {
+        matrix *j = matrix_zeros(data->n_row, data->n_col);
+        for (int k = 0; k < data->n_row; k++)
+        {
+            for (int l = 0; l < data->n_col; l++)
             {
-                temp[i * data->n_col + j] = MATRIX_IDX_INTO(data, i, j);
+                MATRIX_IDX_INTO(j, k, l) = MATRIX_IDX_INTO(data, k, l) - MATRIX_IDX_INTO(means, component, l);
             }
         }
-        double *temp2 = init_array(data->n_row, 0);
-        temp2 = calculate_self_dot_product(temp, data->n_row, data->n_col);
-        // super unsure
-        covs[i * data->n_col * data->n_col] = sum(matrix_multiply(responsibilities, temp2, data->n_row, n_components, n_components, 1), data->n_row) / sum_responsibilities[i];
-    }
-}
 
-double *pinv_1d(double *numbers, double eps, int size)
-{
-    double *result = (double *)init_array(size, 0); // fix
-    for (int i = 0; i < 1; i++)
-    {
-        if (abs(numbers[i]) > eps)
+        matrix **s = init_array(data->n_row, matrix_zeros(data->n_col, data->n_col));
+        // calculating dot product which will go to s. Test it, but almost sure
+        for (int row_idx = 0; row_idx < data->n_row; row_idx++)
         {
-            result[i] = 1 / numbers[i];
+            for (int kk = 0; kk < data->n_col; kk++)
+            {
+                double cell_value = 0;
+                for (int l = 0; l < data->n_col; l++)
+                {
+                    cell_value += MATRIX_IDX_INTO(j, row_idx, l) * MATRIX_IDX_INTO(j, row_idx, l);
+                }
+                for (int kkk = 0; kkk < data->n_col; kkk++)
+                {
+                    MATRIX_IDX_INTO(s[row_idx], kk, kkk) = cell_value;
+                }
+            }
         }
-    }
-    return result;
-}
-
-void psd(double *data, int n_cols, int n_rows)
-{
-    matrix *m = matrix_from_array(data, n_rows, n_cols);
-    eigen *eigen = eigen_solve(m, TOL, MAX_ITER);
-    double *s = init_array(n_cols, 0);
-    for (int i = 0; i < n_cols; i++)
-    {
-        s[i] = VECTOR_IDX_INTO(eigen->eigenvalues, i);
-    }
-    double *s_pinv = pinv_1d(s, TOL, n_cols);
-    for (int i = 0; i < n_cols; i++)
-    {
-        s[i] = sqrt(s[i]);
-    }
-    matrix *S_ping = matrix_from_array(s_pinv, n_cols, 1);
-    matrix *U = matrix_multiply(eigen->eigenvectors, S_ping);
-    // log_pdget
-}
-
-void log_pdf(double *x, int n_rows, double mean, matrix *U, double log_pdet, int rank)
-{
-    matrix *deviation = matrix_from_array(x, 1, n_rows);
-    matrix *tmp = matrix_multiply(deviation, U);
-    for (int i = 0; i < n_rows; i++)
-    {
-        for (int j = 0; j < n_rows; j++)
+        // Almost sure
+        matrix *sigma = matrix_zeros(data->n_col, data->n_col);
+        for (int i = 0; i < data->n_col; ++i)
         {
-            double sq = sqrt(MATRIX_IDX_INTO(deviation, i, j));
-            MATRIX_IDX_INTO(tmp, i, j) = sq;
+            for (int j = 0; j < data->n_col; ++j)
+            {
+                double cell_value = 0;
+                for (int row_idx = 0; row_idx < data->n_row; ++row_idx)
+                {
+                    cell_value += MATRIX_IDX_INTO(responsibilities, row_idx, component) * MATRIX_IDX_INTO(s[i], j, row_idx);
+                }
+                cell_value /= VECTOR_IDX_INTO(sum_responsibilities, component);
+                MATRIX_IDX_INTO(sigma, i, j) = cell_value;
+            }
         }
+        covs[component] = sigma;
     }
-
-    // matrix* maha = matrix_multiply(dev, U);
-    // return -0.5 * (rank * _LOG_2PI + log_det_cov + maha)) {
+    mixture_covs = &covs;
 }
 
 /**
- * Compute probability for vector x to belong to distribution. Generated, so pretty unsure about code.
- *
- *
- * ........
+ * Calculates probability density function for each row of matrix x given mean and covariance
+ * @param x - matrix of data points, shape (n_samples, n_features)
+ * @param mean - mean of the distribution, shape (n_features,)
+ * @param covariance - covariance matrix, shape (n_features, n_features)
  */
-double pdf(vector *x, double *means, double *sigma, int dimension)
+vector *pdf(matrix *x, vector *mean, matrix *covariance)
 {
-    double det;
-    double *temp = (double *)malloc(dimension * sizeof(double));
-    for (int i = 0; i < dimension; ++i)
+    // TODO: work on positive semidefinite matrix
+    PSD psd = calculate_positive_semidefinite_matrix(covariance, covariance->n_col, covariance->n_row);
+    matrix *log_pdf = calculate_log_pdf(x, mean, psd.U, psd.log_pdet, psd.rank);
+    vector *result = vector_new(log_pdf->n_row);
+    for (int i = 0; i < log_pdf->n_row; i++)
     {
-        det *= sigma[i * dimension + i];
-        temp[i] = VECTOR_IDX_INTO(x, i) - means[i];
+        VECTOR_IDX_INTO(result, i) = exp(MATRIX_IDX_INTO(log_pdf, i, 0));
     }
-
-    double exp = 0.0;
-    double *inverse = invert_matrix(sigma, dimension);
-    for (int i = 0; i < dimension; ++i)
-    {
-        for (int j = 0; j < dimension; j++)
-        {
-            exp += temp[j] * inverse[j * dimension + i];
-        }
-        exp *= temp[i];
-    }
-    exp *= -0.5;
-
-    return 1 / sqrt(pow(2 * M_PI, dimension) * det) * exp;
+    return result;
 }
 
-// Function to perform Gaussian elimination and invert a matrix
-double *invert_matrix(double *original, int dimension)
+/**
+ * log_pdet - logarithm of determinant of pseudoinverse matrix
+ * rank - rank of matrix
+ */
+
+PSD calculate_positive_semidefinite_matrix(matrix *data, int n_cols, int n_rows)
 {
-    double determinant = calculate_determinant(original, dimension);
-    if (determinant == 0.0)
+    eigen *eigen = eigen_solve(data, TOL, MAX_ITER);
+    vector *s = vector_new(n_cols);
+    vector *s_pinv = pinv_1d(eigen->eigenvalues, TOL);
+    for (int i = 0; i < n_cols; i++)
     {
-        // Matrix is singular (non-invertible)
-        throw std::invalid_argument("received non invertible matrix");
+        VECTOR_IDX_INTO(s_pinv, i) = sqrt(VECTOR_IDX_INTO(s_pinv, i));
     }
 
-    double d = 1. / determinant;
-
-    double *inverse = init_array(dimension * dimension, 0);
-
-    double *cofactor = calculate_cofactor(original, dimension);
-
-    for (int i = 0; i < dimension; i++)
+    matrix *U = matrix_new(eigen->eigenvectors->n_row, eigen->eigenvectors->n_col);
+    for (int i = 0; i < U->n_row; i++)
     {
-        for (int j = 0; j < dimension; j++)
+        for (int j = 0; j < U->n_col; j++)
         {
-            double sign = pow(-1, i + j);
-            inverse[i * dimension + j] = d * sign * cofactor[i * dimension + j];
+            MATRIX_IDX_INTO(U, i, j) = MATRIX_IDX_INTO(eigen->eigenvectors, i, j) * VECTOR_IDX_INTO(s_pinv, j);
         }
     }
-    inverse = transpose(inverse, dimension, dimension);
-    return inverse;
+    double log_pdet = 0;
+    for (int i = 0; i < n_cols; i++)
+    {
+        log_pdet += log(VECTOR_IDX_INTO(eigen->eigenvalues, i));
+    }
+
+    return {
+        .U = U,
+        .log_pdet = log_pdet,
+        .rank = n_cols};
 }
 
-// copilot generated
-double calculate_determinant(double *matrix, int dimension)
+vector *pinv_1d(vector *v, double eps)
 {
-    double det = 0;
-    if (dimension == 1)
+    // double *result = (double *)init_array(size, 0); // fix
+    vector *result = vector_new(v->length);
+    for (int i = 0; i < 1; i++)
     {
-        return matrix[0];
-    }
-    else if (dimension == 2)
-    {
-        return matrix[0] * matrix[3] - matrix[1] * matrix[2];
-    }
-    else
-    {
-        for (int i = 0; i < dimension; i++)
+        if (abs(VECTOR_IDX_INTO(v, i)) > eps)
         {
-            double *temp = init_array((dimension - 1) * (dimension - 1), 0);
-            for (int j = 1; j < dimension; j++)
-            {
-                for (int k = 0; k < dimension; k++)
-                {
-                    if (k < i)
-                    {
-                        temp[(j - 1) * (dimension - 1) + k] = matrix[j * dimension + k];
-                    }
-                    else if (k > i)
-                    {
-                        temp[(j - 1) * (dimension - 1) + k - 1] = matrix[j * dimension + k];
-                    }
-                }
-            }
-            det += pow(-1, i) * matrix[i] * calculate_determinant(temp, dimension - 1);
-        }
-    }
-    return det;
-}
-
-double *init_array(int size, double value)
-{
-    double *array = (double *)malloc(size * sizeof(double));
-    for (int i = 0; i < size; i++)
-    {
-        array[i] = value;
-    }
-    return array;
-}
-
-double sum(double *array, int size)
-{
-    double sum = 0;
-    for (int i = 0; i < size; i++)
-    {
-        sum += array[i];
-    }
-    return sum;
-}
-
-double *matrix_multiply(double *matrix1, double *matrix2, int row_count1, int col_count1, int row_count2, int col_count2)
-{
-    double *result = init_array(row_count1 * col_count2, 0);
-    for (int i = 0; i < row_count1; i++)
-    {
-        for (int j = 0; j < col_count2; j++)
-        {
-            for (int k = 0; k < col_count1; k++)
-            {
-                result[i * col_count2 + j] += matrix1[i * col_count1 + k] * matrix2[k * col_count2 + j];
-            }
+            VECTOR_IDX_INTO(result, i) = 1 / VECTOR_IDX_INTO(v, i);
         }
     }
     return result;
 }
 
-double *calculate_self_dot_product(double *matrix, int row_count, int col_count)
+matrix *calculate_log_pdf(matrix *x, vector *mean, matrix *U, double log_pdet, int rank)
 {
-    double *result = init_array(row_count * col_count, 0);
-    for (int i = 0; i < row_count; i++)
+    matrix *dev = matrix_new(x->n_row, x->n_col);
+    for (int j = 0; j < dev->n_row; ++j)
     {
-        for (int j = 0; j < col_count; j++)
+        for (int i = 0; i < dev->n_col; i++)
         {
-            for (int k = 0; k < col_count; k++)
-            {
-                result[i * col_count + j] += matrix[i * col_count + k] * matrix[k * col_count + j];
-            }
+            MATRIX_IDX_INTO(dev, j, i) = MATRIX_IDX_INTO(x, j, i) - VECTOR_IDX_INTO(mean, i);
         }
+    }
+
+    matrix *mahalanobis_distance = matrix_multiply(dev, U);
+    for (int i = 0; i < mahalanobis_distance->n_row; i++)
+    {
+        for (int j = 0; j < mahalanobis_distance->n_col; j++)
+        {
+            double sq = pow(MATRIX_IDX_INTO(dev, i, j), 2);
+            MATRIX_IDX_INTO(mahalanobis_distance, i, j) = sq;
+        }
+    }
+    matrix *result = matrix_zeros(dev->n_row, 1);
+    for (int i = 0; i < result->n_row; i++)
+    {
+        for (int j = 0; j < result->n_col; j++)
+        {
+            MATRIX_IDX_INTO(result, i, j) += MATRIX_IDX_INTO(mahalanobis_distance, i, j);
+        }
+        MATRIX_IDX_INTO(result, i, 0) = -0.5 * (rank * log(2 * M_PI) + log_pdet + MATRIX_IDX_INTO(result, i, 0));
     }
     return result;
-}
-
-double *transpose(double *matrix, int row_count, int col_count)
-{
-    double *result = init_array(row_count * col_count, 0);
-    for (int i = 0; i < row_count; i++)
-    {
-        for (int j = 0; j < col_count; j++)
-        {
-            result[j * row_count + i] = matrix[i * col_count + j];
-        }
-    }
-    return result;
-}
-
-// copilot generated
-double *calculate_cofactor(double *original, int dimension)
-{
-    double *cofactor = init_array(dimension * dimension, 0);
-    double *temp = init_array((dimension - 1) * (dimension - 1), 0);
-    for (int i = 0; i < dimension; i++)
-    {
-        for (int j = 0; j < dimension; j++)
-        {
-            int sign = pow(-1, i + j);
-            for (int k = 0; k < dimension; k++)
-            {
-                for (int l = 0; l < dimension; l++)
-                {
-                    if (k != i && l != j)
-                    {
-                        temp[(k < i ? k : k - 1) * (dimension - 1) + (l < j ? l : l - 1)] = original[k * dimension + l];
-                    }
-                }
-            }
-            cofactor[i * dimension + j] = sign * calculate_determinant(temp, dimension - 1);
-        }
-    }
-    return cofactor;
 }

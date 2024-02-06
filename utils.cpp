@@ -1,4 +1,6 @@
 #include "utils.h"
+#include <string.h>
+#include "linalg/vector.h"
 
 double *read_csv(char *filename, int row_count, int col_count, const char *delim)
 {
@@ -54,4 +56,25 @@ void store_csv(char *filename, double *matrix, int row_count, int col_count, con
         fprintf(fp, "%f\n", matrix[i * col_count + j]);
     }
     fclose(fp);
+}
+
+// template <typename T>
+matrix **init_array(int size, matrix *value)
+{
+    matrix **result = (matrix **)malloc(size * sizeof(matrix *));
+    for (int i = 0; i < size; i++)
+    {
+        result[i] = value;
+    }
+    return result;
+}
+
+double vector_sum(struct vector *v)
+{
+    double sum = 0;
+    for (int i = 0; i < v->length; i++)
+    {
+        sum += VECTOR_IDX_INTO(v, i);
+    }
+    return sum;
 }
