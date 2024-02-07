@@ -1,9 +1,11 @@
 #include "utils.h"
 #include <string.h>
 #include "linalg/vector.h"
+#include <errno.h>
 
 double *read_csv(char *filename, int row_count, int col_count, const char *delim)
 {
+    errno = 0;
     double *matrix = (double *)malloc(row_count * col_count * sizeof(double));
     FILE *fp = fopen(filename, "r");
     if (fp == NULL)

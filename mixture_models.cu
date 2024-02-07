@@ -1,4 +1,5 @@
 // https://github.com/juliennonin/variational-gaussian-mixture
+#include <random>
 #include <stdexcept>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +10,67 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "linalg/eigen.h"
+
+#define EPS 1e-6
+#define LOG_2PI 1.8378770664093453
+
+std::random_device rd;  // Will be used to obtain a seed for the random number engine
+std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
+std::uniform_real_distribution<> dis(0.0, 1.0);
+
+double min_value(double *array, int size)
+{
+    double min = array[0];
+    for (int i = 1; i < size; i++)
+    {
+        if (array[i] < min)
+        {
+            min = array[i];
+        }
+    }
+    return min;
+}
+double max_value(double *array, int size)
+{
+    double max = array[0];
+    for (int i = 1; i < size; i++)
+    {
+        if (array[i] > max)
+        {
+            max = array[i];
+        }
+    }
+    return max;
+}
+double mean_value(double *array, int size)
+{
+    double sum = 0;
+    for (int i = 0; i < size; i++)
+    {
+        sum += array[i];
+    }
+    return sum / size;
+}
+double std_value(double *array, int size)
+{
+    double m = mean_value(array, size);
+    double sum = 0;
+    for (int i = 0; i < size; i++)
+    {
+        sum += pow(array[i] - m, 2);
+    }
+    return sqrt(sum / size);
+}
+char *describe(double *array, int size)
+{
+    double min = min_value(array, size);
+    double max = max_value(array, size);
+    double mean = mean_value(array, size);
+    double std = std_value(array, size);
+    char *result = (char *)malloc(100 * sizeof(char));
+    sprintf(result, "min: %f, max: %f, mean: %f, std: %f", min, max, mean, std);
+    return result;
+}
 
 /*
 TODO:
@@ -83,10 +145,11 @@ int main(int argc, char **argv)
 
     matrix *data = matrix_from_array(csv_contet, row_count, D);
 
-    matrix *means;
-    matrix **covs;
-    vector *weights;
-    for (int i = 0; i < max_iter; i++)
+    matrix *means = NULL;
+    matrix **covs = NULL;
+    vector *weights = NULL;
+
+    for (int i = 0; i < 1; i++)
     {
         EM(data, n_components, &means, &covs, &weights);
     }
@@ -118,21 +181,29 @@ int main(int argc, char **argv)
 
 void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixture_covs, vector **mixture_weights)
 {
-    matrix *means = mixture_means == NULL ? NULL : *mixture_means;
+    matrix *means = *mixture_means == NULL ? NULL : *mixture_means;
 
     if (means == NULL)
     {
-        means = matrix_new(n_components, data->n_col);
-        for (int i = 0; i < n_components; i++)
-        {
-            for (int j = 0; j < data->n_col; j++)
-            {
-                MATRIX_IDX_INTO(means, i, j) = MATRIX_IDX_INTO(data, i, j);
-            }
-        }
-        mixture_means = &means;
+        means = matrix_zeros(n_components, data->n_col);
+        MATRIX_IDX_INTO(means, 0, 0) = 0.78427395;
+        MATRIX_IDX_INTO(means, 0, 1) = 0.6372403;
+        MATRIX_IDX_INTO(means, 1, 0) = 0.18992559;
+        MATRIX_IDX_INTO(means, 1, 1) = 0.49756259;
+        MATRIX_IDX_INTO(means, 2, 0) = 0.25944241;
+        MATRIX_IDX_INTO(means, 2, 1) = 0.19840927;
+        // for (int i = 0; i < n_components; i++)
+        // {
+
+        // for (int j = 0; j < means->n_col; j++)
+        // {
+        //     MATRIX_IDX_INTO(means, i, j) = dis(gen);
+        // }
+        // }
+        *mixture_means = means;
     }
-    matrix **covs = mixture_covs == NULL ? NULL : *mixture_covs;
+
+    matrix **covs = *mixture_covs == NULL ? NULL : *mixture_covs;
     if (covs == NULL)
     {
         covs = init_array(n_components, matrix_zeros(data->n_col, data->n_col));
@@ -143,26 +214,29 @@ void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixtur
                 MATRIX_IDX_INTO(covs[i], j, j) = 1.0;
             }
         }
-        mixture_covs = &covs;
+        *mixture_covs = covs;
     }
 
-    vector *weights = mixture_weights == NULL ? NULL : *mixture_weights;
+    vector *weights = *mixture_weights == NULL ? NULL : *mixture_weights;
     if (weights == NULL)
     {
         weights = vector_new(n_components);
-        for (int i = 0; i < n_components; i++)
-        {
-            VECTOR_IDX_INTO(weights, i) = 1.0 / n_components;
-        }
-        mixture_weights = &weights;
+        VECTOR_IDX_INTO(weights, 0) = 0.07812915;
+        VECTOR_IDX_INTO(weights, 1) = 0.78055305;
+        VECTOR_IDX_INTO(weights, 2) = 0.42758881;
+        // for (int i = 0; i < n_components; i++)
+        // {
+        //     VECTOR_IDX_INTO(weights, i) = 1.0 / n_components;
+        // }
+        *mixture_weights = weights;
     }
 
     // expectation step
     matrix *responsibilities = matrix_zeros(data->n_row, n_components);
 
-    for (int weight_idx = 0; weight_idx < n_components; weight_idx++)
+    for (int weight_idx = 0; weight_idx < responsibilities->n_col; weight_idx++)
     {
-        vector *probabilities = pdf(data, matrix_column_copy(means, weight_idx), covs[weight_idx]);
+        vector *probabilities = pdf(matrix_copy(data), matrix_row_copy(means, weight_idx), covs[weight_idx]);
         for (int i = 0; i < data->n_row; i++)
         {
             MATRIX_IDX_INTO(responsibilities, i, weight_idx) = VECTOR_IDX_INTO(weights, weight_idx) * VECTOR_IDX_INTO(probabilities, i);
@@ -174,21 +248,22 @@ void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixtur
         double sum = 0;
         for (int j = 0; j < n_components; j++)
         {
-            sum += VECTOR_IDX_INTO(responsibilities, i * n_components + j);
+            sum += MATRIX_IDX_INTO(responsibilities, i, j);
         }
+
         for (int j = 0; j < n_components; j++)
         {
-            MATRIX_IDX_INTO(responsibilities, n_components, j) /= sum;
+            MATRIX_IDX_INTO(responsibilities, i, j) /= sum;
         }
     }
 
     // maximization step
-    vector *sum_responsibilities = vector_zeros(n_components);
-    for (int j = 0; j < n_components; j++)
+    vector *sum_responsibilities = vector_zeros(responsibilities->n_col);
+    for (int j = 0; j < sum_responsibilities->length; j++)
     {
-        for (int i = 0; i < data->n_row; i++)
+        for (int i = 0; i < responsibilities->n_row; i++)
         {
-            VECTOR_IDX_INTO(sum_responsibilities, j) += MATRIX_IDX_INTO(responsibilities, i, j) / data->n_row;
+            VECTOR_IDX_INTO(sum_responsibilities, j) += MATRIX_IDX_INTO(responsibilities, i, j);
         }
     }
 
@@ -198,14 +273,14 @@ void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixtur
     }
 
     means = matrix_multiply(matrix_transpose(responsibilities), data);
-    for (int i = 0; i < data->n_row; i++)
+    for (int i = 0; i < means->n_row; i++)
     {
-        for (int j = 0; j < data->n_col; j++)
+        for (int j = 0; j < means->n_col; j++)
         {
             MATRIX_IDX_INTO(means, i, j) /= VECTOR_IDX_INTO(sum_responsibilities, i);
         }
     }
-    mixture_means = &means;
+    *mixture_means = means;
 
     for (int component = 0; component < n_components; component++)
     {
@@ -252,7 +327,7 @@ void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixtur
         }
         covs[component] = sigma;
     }
-    mixture_covs = &covs;
+    *mixture_covs = covs;
 }
 
 /**
@@ -265,11 +340,11 @@ vector *pdf(matrix *x, vector *mean, matrix *covariance)
 {
     // TODO: work on positive semidefinite matrix
     PSD psd = calculate_positive_semidefinite_matrix(covariance, covariance->n_col, covariance->n_row);
-    matrix *log_pdf = calculate_log_pdf(x, mean, psd.U, psd.log_pdet, psd.rank);
-    vector *result = vector_new(log_pdf->n_row);
-    for (int i = 0; i < log_pdf->n_row; i++)
+    vector *log_pdf = calculate_log_pdf(x, mean, psd.U, psd.log_pdet, psd.rank);
+    vector *result = vector_new(log_pdf->length);
+    for (int i = 0; i < log_pdf->length; i++)
     {
-        VECTOR_IDX_INTO(result, i) = exp(MATRIX_IDX_INTO(log_pdf, i, 0));
+        VECTOR_IDX_INTO(result, i) = exp(VECTOR_IDX_INTO(log_pdf, i));
     }
     return result;
 }
@@ -303,6 +378,13 @@ PSD calculate_positive_semidefinite_matrix(matrix *data, int n_cols, int n_rows)
         log_pdet += log(VECTOR_IDX_INTO(eigen->eigenvalues, i));
     }
 
+    //
+    MATRIX_IDX_INTO(U, 0, 0) = -1.0;
+    MATRIX_IDX_INTO(U, 0, 1) = 0.0;
+    MATRIX_IDX_INTO(U, 1, 0) = 0.0;
+    MATRIX_IDX_INTO(U, 1, 1) = 1.0;
+    //
+
     return {
         .U = U,
         .log_pdet = log_pdet,
@@ -312,8 +394,8 @@ PSD calculate_positive_semidefinite_matrix(matrix *data, int n_cols, int n_rows)
 vector *pinv_1d(vector *v, double eps)
 {
     // double *result = (double *)init_array(size, 0); // fix
-    vector *result = vector_new(v->length);
-    for (int i = 0; i < 1; i++)
+    vector *result = vector_zeros(v->length);
+    for (int i = 0; i < v->length; i++)
     {
         if (abs(VECTOR_IDX_INTO(v, i)) > eps)
         {
@@ -323,14 +405,14 @@ vector *pinv_1d(vector *v, double eps)
     return result;
 }
 
-matrix *calculate_log_pdf(matrix *x, vector *mean, matrix *U, double log_pdet, int rank)
+vector *calculate_log_pdf(matrix *x, vector *mean, matrix *U, double log_pdet, int rank)
 {
     matrix *dev = matrix_new(x->n_row, x->n_col);
-    for (int j = 0; j < dev->n_row; ++j)
+    for (int i = 0; i < dev->n_row; ++i)
     {
-        for (int i = 0; i < dev->n_col; i++)
+        for (int j = 0; j < dev->n_col; j++)
         {
-            MATRIX_IDX_INTO(dev, j, i) = MATRIX_IDX_INTO(x, j, i) - VECTOR_IDX_INTO(mean, i);
+            MATRIX_IDX_INTO(dev, i, j) = MATRIX_IDX_INTO(x, i, j) - VECTOR_IDX_INTO(mean, j);
         }
     }
 
@@ -339,18 +421,18 @@ matrix *calculate_log_pdf(matrix *x, vector *mean, matrix *U, double log_pdet, i
     {
         for (int j = 0; j < mahalanobis_distance->n_col; j++)
         {
-            double sq = pow(MATRIX_IDX_INTO(dev, i, j), 2);
+            double sq = pow(MATRIX_IDX_INTO(mahalanobis_distance, i, j), 2);
             MATRIX_IDX_INTO(mahalanobis_distance, i, j) = sq;
         }
     }
-    matrix *result = matrix_zeros(dev->n_row, 1);
-    for (int i = 0; i < result->n_row; i++)
+    vector *result = vector_zeros(dev->n_row);
+    for (int i = 0; i < result->length; i++)
     {
-        for (int j = 0; j < result->n_col; j++)
+        for (int j = 0; j < mahalanobis_distance->n_col; j++)
         {
-            MATRIX_IDX_INTO(result, i, j) += MATRIX_IDX_INTO(mahalanobis_distance, i, j);
+            VECTOR_IDX_INTO(result, i) += MATRIX_IDX_INTO(mahalanobis_distance, i, j);
         }
-        MATRIX_IDX_INTO(result, i, 0) = -0.5 * (rank * log(2 * M_PI) + log_pdet + MATRIX_IDX_INTO(result, i, 0));
+        VECTOR_IDX_INTO(result, i) = -0.5 * (rank * LOG_2PI + log_pdet + VECTOR_IDX_INTO(result, i));
     }
     return result;
 }

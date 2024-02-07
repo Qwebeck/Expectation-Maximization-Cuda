@@ -26,7 +26,7 @@ struct GmmHyperparams
     double m;
 };
 // Initializes an empty array filled with values
-matrix *calculate_log_pdf(matrix *x, vector *mean, matrix *U, double log_pdet, int rank);
+vector *calculate_log_pdf(matrix *x, vector *mean, matrix *U, double log_pdet, int rank);
 vector *pdf(matrix *x, vector *mean, matrix *covariance);
 void EM(matrix *data, int n_components, matrix **mixture_means = NULL, matrix ***mixture_covs = NULL, vector **mixture_weights = NULL);
 vector *pinv_1d(vector *v, double eps);
