@@ -72,63 +72,6 @@ char *describe(double *array, int size)
     return result;
 }
 
-/*
-TODO:
-3. implement c sequential code [x]
-4. debug c sequential code [ ]
-
-
-- verify how to compute probability density function
---------------
-pdf
-        dim, mean, cov = self._process_parameters(None, mean, cov)
-        x = self._process_quantiles(x, dim)
-        psd = _PSD(cov, allow_singular=allow_singular)
-        out = np.exp(self._logpdf(x, mean, psd.U, psd.log_pdet, psd.rank))
-        return _squeeze_output(out)
----------------
-where _PSD has the following code:
-
-
-    s, u = scipy.linalg.eigh(M, lower=lower, check_finite=check_finite)
-
-    eps = _eigvalsh_to_eps(s, cond, rcond)
-    if np.min(s) < -eps:
-        msg = "The input matrix must be symmetric positive semidefinite."
-        raise ValueError(msg)
-    d = s[s > eps]
-    if len(d) < len(s) and not allow_singular:
-        msg = ("When `allow_singular is False`, the input matrix must be "
-               "symmetric positive definite.")
-        raise np.linalg.LinAlgError(msg)
-    s_pinv = _pinv_1d(s, eps)
-    U = np.multiply(u, np.sqrt(s_pinv))
-    # Initialize the eagerly precomputed attributes.
-    self.rank = len(d)
-    self.U = U
-    self.log_pdet = np.sum(np.log(d))
-
-and log_pdf:
-        dev = x - mean
-        maha = np.sum(np.square(np.dot(dev, prec_U)), axis=-1)
-        return -0.5 * (rank * _LOG_2PI + log_det_cov + maha)
------
-I need to:
-1. calculate eigenvalues decomposition to get U and eigenvalues from it
-2. sum logarithms of eigenvalues
-3. calculate rank
-4. calculate log_pdf
-
-TODO tomorrow:
-reimplement this https://numpy.org/doc/stable/reference/generated/numpy.linalg.eigh.html
-
-
-
-- write and test code for 3D matrix (which is covariance matrix)
-
---- can we use cublas?
-*/
-
 #define TOL 1e-6
 #define MAX_ITER 10000
 
@@ -149,7 +92,7 @@ int main(int argc, char **argv)
     matrix **covs = NULL;
     vector *weights = NULL;
 
-    for (int i = 0; i < 1; i++)
+    for (int i = 0; i < max_iter; i++)
     {
         EM(data, n_components, &means, &covs, &weights);
     }
@@ -186,20 +129,14 @@ void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixtur
     if (means == NULL)
     {
         means = matrix_zeros(n_components, data->n_col);
-        MATRIX_IDX_INTO(means, 0, 0) = 0.78427395;
-        MATRIX_IDX_INTO(means, 0, 1) = 0.6372403;
-        MATRIX_IDX_INTO(means, 1, 0) = 0.18992559;
-        MATRIX_IDX_INTO(means, 1, 1) = 0.49756259;
-        MATRIX_IDX_INTO(means, 2, 0) = 0.25944241;
-        MATRIX_IDX_INTO(means, 2, 1) = 0.19840927;
-        // for (int i = 0; i < n_components; i++)
-        // {
+        for (int i = 0; i < n_components; i++)
+        {
 
-        // for (int j = 0; j < means->n_col; j++)
-        // {
-        //     MATRIX_IDX_INTO(means, i, j) = dis(gen);
-        // }
-        // }
+            for (int j = 0; j < means->n_col; j++)
+            {
+                MATRIX_IDX_INTO(means, i, j) = dis(gen);
+            }
+        }
         *mixture_means = means;
     }
 
@@ -221,13 +158,10 @@ void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixtur
     if (weights == NULL)
     {
         weights = vector_new(n_components);
-        VECTOR_IDX_INTO(weights, 0) = 0.07812915;
-        VECTOR_IDX_INTO(weights, 1) = 0.78055305;
-        VECTOR_IDX_INTO(weights, 2) = 0.42758881;
-        // for (int i = 0; i < n_components; i++)
-        // {
-        //     VECTOR_IDX_INTO(weights, i) = 1.0 / n_components;
-        // }
+        for (int i = 0; i < n_components; i++)
+        {
+            VECTOR_IDX_INTO(weights, i) = 1.0 / n_components;
+        }
         *mixture_weights = weights;
     }
 
@@ -295,31 +229,28 @@ void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixtur
 
         matrix **s = init_array(data->n_row, matrix_zeros(data->n_col, data->n_col));
         // calculating dot product which will go to s. Test it, but almost sure
-        for (int row_idx = 0; row_idx < data->n_row; row_idx++)
+        for (int x = 0; x < data->n_row; ++x)
         {
-            for (int kk = 0; kk < data->n_col; kk++)
+            for (int y = 0; y < j->n_col; ++y)
             {
-                double cell_value = 0;
-                for (int l = 0; l < data->n_col; l++)
+                for (int z = 0; z < j->n_col; ++z)
                 {
-                    cell_value += MATRIX_IDX_INTO(j, row_idx, l) * MATRIX_IDX_INTO(j, row_idx, l);
-                }
-                for (int kkk = 0; kkk < data->n_col; kkk++)
-                {
-                    MATRIX_IDX_INTO(s[row_idx], kk, kkk) = cell_value;
+                    MATRIX_IDX_INTO(s[x], y, z) = MATRIX_IDX_INTO(j, x, y) * MATRIX_IDX_INTO(j, x, z);
                 }
             }
         }
+
         // Almost sure
         matrix *sigma = matrix_zeros(data->n_col, data->n_col);
-        for (int i = 0; i < data->n_col; ++i)
+
+        for (int i = 0; i < sigma->n_row; ++i)
         {
-            for (int j = 0; j < data->n_col; ++j)
+            for (int j = 0; j < sigma->n_col; ++j)
             {
                 double cell_value = 0;
                 for (int row_idx = 0; row_idx < data->n_row; ++row_idx)
                 {
-                    cell_value += MATRIX_IDX_INTO(responsibilities, row_idx, component) * MATRIX_IDX_INTO(s[i], j, row_idx);
+                    cell_value += MATRIX_IDX_INTO(responsibilities, row_idx, component) * MATRIX_IDX_INTO(s[row_idx], i, j);
                 }
                 cell_value /= VECTOR_IDX_INTO(sum_responsibilities, component);
                 MATRIX_IDX_INTO(sigma, i, j) = cell_value;
@@ -377,13 +308,6 @@ PSD calculate_positive_semidefinite_matrix(matrix *data, int n_cols, int n_rows)
     {
         log_pdet += log(VECTOR_IDX_INTO(eigen->eigenvalues, i));
     }
-
-    //
-    MATRIX_IDX_INTO(U, 0, 0) = -1.0;
-    MATRIX_IDX_INTO(U, 0, 1) = 0.0;
-    MATRIX_IDX_INTO(U, 1, 0) = 0.0;
-    MATRIX_IDX_INTO(U, 1, 1) = 1.0;
-    //
 
     return {
         .U = U,

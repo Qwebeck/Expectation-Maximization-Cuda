@@ -66,7 +66,7 @@ matrix **init_array(int size, matrix *value)
     matrix **result = (matrix **)malloc(size * sizeof(matrix *));
     for (int i = 0; i < size; i++)
     {
-        result[i] = value;
+        result[i] = matrix_copy(value);
     }
     return result;
 }
