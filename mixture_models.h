@@ -3,33 +3,17 @@
 #include "linalg/eigen.h"
 #include <stdio.h>
 #include <stdlib.h>
-struct Data
-{
-    double *data;
-    int num_records;
-    int D;
-};
 
-struct PSD
-{
-    matrix *U;
-    double log_pdet;
-    int rank;
-};
+#define EPS 1e-6
+#define LOG_2PI 1.8378770664093453
+#define TOL 1e-6
+#define MAX_ITER 10000
 
-struct GmmHyperparams
-{
-    double alpha;
-    double beta;
-    double W;
-    double nu;
-    double m;
-};
 // Initializes an empty array filled with values
-vector *calculate_log_pdf(matrix *x, vector *mean, matrix *U, double log_pdet, int rank);
-vector *pdf(matrix *x, vector *mean, matrix *covariance);
 void EM(matrix *data, int n_components, matrix **mixture_means = NULL, matrix ***mixture_covs = NULL, vector **mixture_weights = NULL);
-vector *pinv_1d(vector *v, double eps);
-PSD calculate_positive_semidefinite_matrix(matrix *data, int n_cols, int n_rows);
+
+matrix *initialize_means(int n_components, int n_col);
+matrix **initialize_covs(int n_components, int n_col);
+vector *initialize_weights(int n_components);
 
 #endif // MIXTURE_MODELS_H

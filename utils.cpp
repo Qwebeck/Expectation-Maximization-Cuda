@@ -2,6 +2,7 @@
 #include <string.h>
 #include "linalg/vector.h"
 #include <errno.h>
+#include <math.h>
 
 double *read_csv(char *filename, int row_count, int col_count, const char *delim)
 {
@@ -79,4 +80,61 @@ double vector_sum(struct vector *v)
         sum += VECTOR_IDX_INTO(v, i);
     }
     return sum;
+}
+
+double min_value(double *array, int size)
+{
+    double min = array[0];
+    for (int i = 1; i < size; i++)
+    {
+        if (array[i] < min)
+        {
+            min = array[i];
+        }
+    }
+    return min;
+}
+
+double max_value(double *array, int size)
+{
+    double max = array[0];
+    for (int i = 1; i < size; i++)
+    {
+        if (array[i] > max)
+        {
+            max = array[i];
+        }
+    }
+    return max;
+}
+
+double mean_value(double *array, int size)
+{
+    double sum = 0;
+    for (int i = 0; i < size; i++)
+    {
+        sum += array[i];
+    }
+    return sum / size;
+}
+
+double std_value(double *array, int size)
+{
+    double m = mean_value(array, size);
+    double sum = 0;
+    for (int i = 0; i < size; i++)
+    {
+        sum += pow(array[i] - m, 2);
+    }
+    return sqrt(sum / size);
+}
+char *describe(double *array, int size)
+{
+    double min = min_value(array, size);
+    double max = max_value(array, size);
+    double mean = mean_value(array, size);
+    double std = std_value(array, size);
+    char *result = (char *)malloc(100 * sizeof(char));
+    sprintf(result, "min: %f, max: %f, mean: %f, std: %f", min, max, mean, std);
+    return result;
 }
