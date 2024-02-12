@@ -5,12 +5,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include "mixture_models.h"
+#include "EM.h"
 #include "stats.h"
 #include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include "linalg/eigen.h"
+#include "../linalg/eigen.h"
 
 std::random_device rd;  // Will be used to obtain a seed for the random number engine
 std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()

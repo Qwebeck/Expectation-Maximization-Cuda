@@ -1,6 +1,6 @@
 #ifndef STATS_H
 #define STATS_H
-#include "linalg/eigen.h"
+#include "../linalg/eigen.h"
 
 struct PSD
 {

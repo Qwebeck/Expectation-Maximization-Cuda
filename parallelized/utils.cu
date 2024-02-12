@@ -1,6 +1,6 @@
 #include "utils.h"
 #include <string.h>
-#include "linalg/vector.h"
+#include "../linalg/vector.h"
 #include <errno.h>
 #include <math.h>
 
@@ -137,4 +137,13 @@ char *describe(double *array, int size)
     char *result = (char *)malloc(100 * sizeof(char));
     sprintf(result, "min: %f, max: %f, mean: %f, std: %f", min, max, mean, std);
     return result;
+}
+
+void print_array(double *array, int size)
+{
+    for (int i = 0; i < size; i++)
+    {
+        printf("%f ", array[i]);
+    }
+    printf("\n");
 }

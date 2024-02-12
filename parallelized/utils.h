@@ -2,7 +2,7 @@
 #define UTILS_H
 #include <stdio.h>
 #include <stdlib.h>
-#include "linalg/eigen.h"
+#include "../linalg/eigen.h"
 
 matrix **init_array(int size, matrix *value);
 double *read_csv(char *filename, int row_count, int col_count, const char *delim = ",");
@@ -14,5 +14,6 @@ double max_value(double *array, int size);
 double mean_value(double *array, int size);
 double std_value(double *array, int size);
 char *describe(double *array, int size);
+void print_array(double *array, int size);
 
 #endif

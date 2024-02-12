@@ -1,7 +1,7 @@
 #include "stats.h"
 #include <math.h>
-#include "linalg/eigen.h"
-#include "mixture_models.h"
+#include "../linalg/eigen.h"
+#include "EM.h"
 
 /**
  * Calculates probability density function for each row of matrix x given mean and covariance

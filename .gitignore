@@ -34,4 +34,3 @@ Release/
 *.VC.VC.opendb
 __pycache__/
 PAMAP2_Dataset/
-linalg/

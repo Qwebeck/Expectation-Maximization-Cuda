@@ -1,6 +1,15 @@
-#include "linalg/eigen.h"
-#include "mixture_models.h"
+#include "../linalg/eigen.h"
+#include "EM.h"
 #include "utils.h"
+
+/*
+TODO:
+[ ] parallelize for CUDA
+-   read the paper
+-   understand linalg object
+[ ] benchmark Sequential version
+
+*/
 
 int main(int argc, char **argv)
 {
