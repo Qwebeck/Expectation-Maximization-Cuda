@@ -11,7 +11,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "../linalg/eigen.h"
-#include "errorChecking.cu"
+
+#define IDX(i, j, n_cols) ((i) * (n_cols) + (j))
 
 std::random_device rd;  // Will be used to obtain a seed for the random number engine
 std::mt19937 gen(rd()); // Standard mersenne_twister_engine seeded with rd()
@@ -24,6 +25,10 @@ void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixtur
     vector *weights = *mixture_weights == NULL ? initialize_weights(n_components) : *mixture_weights;
 
     // expectation step
+    // double *d_data;
+    // cudaMalloc((void **)&d_data, data->n_row * data->n_col * sizeof(double));
+    // cudaMemcpy(d_data, DATA(data), data->n_row * data->n_col * sizeof(double), cudaMemcpyHostToDevice);
+
     matrix *responsibilities = matrix_zeros(data->n_row, n_components);
 
     double *d_responsibilities;
@@ -44,21 +49,20 @@ void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixtur
 
         // for (int i = 0; i < data->n_row; i++)
         // {
-        dim3 block_size(256);
+        dim3 block_size(BLOCK_SIZE);
         dim3 grid_size((data->n_row) / block_size.x + 1);
 
-        CHECK_CUDA_ERROR(cudaMemcpy(d_probabilities, DATA(probabilities), probabilities->length * sizeof(double), cudaMemcpyHostToDevice));
+        cudaMemcpy(d_probabilities, DATA(probabilities), probabilities->length * sizeof(double), cudaMemcpyHostToDevice);
 
         estimate_log_responsibility<<<block_size, grid_size>>>(d_responsibilities, responsibilities->n_col, responsibilities->n_row, weight_idx, weight, d_probabilities, probabilities->length);
         // }
-        CHECK_CUDA_ERROR(cudaFree(d_probabilities));
+        cudaFree(d_probabilities);
     }
 
-    CHECK_CUDA_ERROR(cudaMemcpy(DATA(responsibilities), d_responsibilities, responsibilities->n_row * responsibilities->n_col * sizeof(double), cudaMemcpyDeviceToHost));
+    cudaMemcpy(DATA(responsibilities), d_responsibilities, responsibilities->n_row * responsibilities->n_col * sizeof(double), cudaMemcpyDeviceToHost);
     cudaFree(d_responsibilities);
 
     normalize_responsibilities(data, responsibilities, n_components);
-
     // maximization step
 
     /* 6. Computation of Sum of Resp: SR */
@@ -82,16 +86,78 @@ void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixtur
     *mixture_covs = covs;
 }
 
-void normalize_responsibilities(matrix *data, matrix *&responsibilities, int n_components)
+// template <unsigned int blockSize>
+void normalize_responsibilities(matrix *data, matrix *responsibilities, int n_components)
 {
     for (int i = 0; i < data->n_row; i++)
     {
         double sum = vector_sum(matrix_row_view(responsibilities, i));
+
         for (int j = 0; j < n_components; j++)
         {
             MATRIX_IDX_INTO(responsibilities, i, j) /= sum;
         }
     }
+}
+
+template <unsigned int blockSize>
+__device__ void warpReduce(volatile int *sdata, unsigned int tid)
+{
+    if (blockSize >= 64)
+        sdata[tid] += sdata[tid + 32];
+    if (blockSize >= 32)
+        sdata[tid] += sdata[tid + 16];
+    if (blockSize >= 16)
+        sdata[tid] += sdata[tid + 8];
+    if (blockSize >= 8)
+        sdata[tid] += sdata[tid + 4];
+    if (blockSize >= 4)
+        sdata[tid] += sdata[tid + 2];
+    if (blockSize >= 2)
+        sdata[tid] += sdata[tid + 1];
+}
+template <unsigned int blockSize>
+__global__ void reduce_row(int *g_idata, int *g_odata, unsigned int n)
+{
+    extern __shared__ int sdata[];
+    unsigned int tid = threadIdx.x;
+    unsigned int i = blockIdx.x * (blockSize * 2) + tid;
+    unsigned int gridSize = blockSize * 2 * gridDim.x;
+    sdata[tid] = 0;
+    while (i < n)
+    {
+        sdata[tid] += g_idata[i] + g_idata[i + blockSize];
+        i += gridSize;
+    }
+    __syncthreads();
+    if (blockSize >= 512)
+    {
+        if (tid < 256)
+        {
+            sdata[tid] += sdata[tid + 256];
+        }
+        __syncthreads();
+    }
+    if (blockSize >= 256)
+    {
+        if (tid < 128)
+        {
+            sdata[tid] += sdata[tid + 128];
+        }
+        __syncthreads();
+    }
+    if (blockSize >= 128)
+    {
+        if (tid < 64)
+        {
+            sdata[tid] += sdata[tid + 64];
+        }
+        __syncthreads();
+    }
+    if (tid < 32)
+        warpReduce(sdata, tid);
+    if (tid == 0)
+        g_odata[blockIdx.x] = sdata[0];
 }
 
 void estimate_covariance(int n_components, matrix *&data, matrix *&means, matrix *&responsibilities, vector *&sum_responsibilities, matrix **covs)

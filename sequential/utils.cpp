@@ -3,6 +3,28 @@
 #include "../linalg/vector.h"
 #include <errno.h>
 #include <math.h>
+#include <fstream>
+#include <iostream>
+
+void append_to_file(char *filename, char *text)
+{
+    // Open the file in append mode. This will create the file if it does not exist.
+    std::ofstream file;
+    file.open(filename, std::ios::app);
+
+    if (file.is_open())
+    {
+        // Write the text to the file
+        file << text << std::endl;
+
+        // Close the file
+        file.close();
+    }
+    else
+    {
+        std::cerr << "Unable to open file: " << filename << std::endl;
+    }
+}
 
 double *read_csv(char *filename, int row_count, int col_count, const char *delim)
 {

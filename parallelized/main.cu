@@ -1,6 +1,18 @@
 #include "../linalg/eigen.h"
 #include "EM.h"
 #include "utils.h"
+#include "cudaTimer.cu"
+
+/**
+ * I will scale data size and measure execution time.
+ * Additionaly, I will provide a plot of speedup, where on x-axis will be number of elements and on y-axis speedup.
+ * Therefore, I am working with Gustafson
+ * TODO:
+ * - [x] time measurement
+ * - [x] matrix multiplication
+ * - [ ] row/column reduction
+ *
+ */
 
 int main(int argc, char **argv)
 {
@@ -11,6 +23,8 @@ int main(int argc, char **argv)
     char *means_fname = argv[5];
     char *covs_fname = argv[6];
     int max_iter = atoi(argv[7]);
+    char *time_fname = argv[8];
+
     double *csv_contet = read_csv(filename, row_count, D);
 
     matrix *data = matrix_from_array(csv_contet, row_count, D);
@@ -19,10 +33,16 @@ int main(int argc, char **argv)
     matrix **covs = NULL;
     vector *weights = NULL;
 
+    cuTimer cuTimer;
+    cuTimer.start();
     for (int i = 0; i < max_iter; i++)
     {
         EM(data, n_components, &means, &covs, &weights);
     }
+    cuTimer.stop();
+    char timer_info[200]; // Adjust the size as needed
+    sprintf(timer_info, "%d, %f", row_count, cuTimer.elapsedTime);
+    append_to_file(time_fname, timer_info);
 
     double means_array[n_components * D];
     for (int i = 0; i < n_components; i++)

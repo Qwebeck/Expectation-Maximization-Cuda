@@ -14,5 +14,6 @@ double max_value(double *array, int size);
 double mean_value(double *array, int size);
 double std_value(double *array, int size);
 char *describe(double *array, int size);
+void append_to_file(char *filename, char *text);
 
 #endif
