@@ -20,6 +20,6 @@ void normalize_responsibilities(matrix *data, matrix *responsibilities, int n_co
 void estimate_covariance(int n_components, matrix *&data, matrix *&means, matrix *&responsibilities, vector *&sum_responsibilities, matrix **covs);
 void estimate_means(matrix *&means, matrix *responsibilities, matrix *data, vector *&sum_responsibilities);
 void sum_up_responsibilities(vector *&sum_responsibilities, int &j, matrix *responsibilities);
-__global__ void estimate_log_responsibility(double *responsibilities, int resp_col, int resp_row, int weight_idx, double weight, double *probabilities, int p_length);
+__global__ void estimate_log_responsibility(float *responsibilities, int resp_col, int resp_row, int weight_idx, float weight, float *probabilities, int p_length);
 
 #endif // EM_H

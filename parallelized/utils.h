@@ -5,16 +5,16 @@
 #include "../linalg/eigen.h"
 
 matrix **init_array(int size, matrix *value);
-double *read_csv(char *filename, int row_count, int col_count, const char *delim = ",");
-void store_csv(char *filename, double *matrix, int row_count, int col_count, const char *delim = ",");
+float *read_csv(char *filename, int row_count, int col_count, const char *delim = ",");
+void store_csv(char *filename, float *matrix, int row_count, int col_count, const char *delim = ",");
 
-double vector_sum(struct vector *v);
-double min_value(double *array, int size);
-double max_value(double *array, int size);
-double mean_value(double *array, int size);
-double std_value(double *array, int size);
-char *describe(double *array, int size);
-void print_array(double *array, int size);
+float vector_sum(struct vector *v);
+float min_value(float *array, int size);
+float max_value(float *array, int size);
+float mean_value(float *array, int size);
+float std_value(float *array, int size);
+char *describe(float *array, int size);
+void print_array(float *array, int size);
 void append_to_file(char *filename, char *text);
 
 #endif

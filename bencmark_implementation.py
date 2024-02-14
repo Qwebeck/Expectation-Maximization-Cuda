@@ -36,7 +36,7 @@ os.system(f"touch {time_fname} && rm {time_fname}")
 os.system(f"touch {file_name} && rm {file_name}")
 os.system("pwd")
 
-for i in range(6, 15):
+for i in range(6, 12):
     # size = gen_data_to_file(n_components, D, points_per_cluster = 2 ** i, filename=file_name)
     os.system(f"touch {file_name} && rm {file_name}")
     points_per_cluster = 2 ** i
@@ -48,8 +48,8 @@ for i in range(6, 15):
             np.savetxt(f, X, delimiter=",")
             points_per_cluster -= 2 ** 5
             size += X.shape[0]
-
-    command = f"./{target_dir}/{out_name} {file_name} {n_components} {size} {D} {means} {sigma} {num_iters} {time_fname}"
-    print(command)
-    os.system(command)
-    print(np.loadtxt(time_fname, delimiter=",")[-1])
+    for _ in range(5):
+        command = f"./{target_dir}/{out_name} {file_name} {n_components} {size} {D} {means} {sigma} {num_iters} {time_fname}"
+        print(command)
+        os.system(command)
+        print(np.loadtxt(time_fname, delimiter=",")[-1])

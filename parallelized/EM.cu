@@ -25,41 +25,41 @@ void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixtur
     vector *weights = *mixture_weights == NULL ? initialize_weights(n_components) : *mixture_weights;
 
     // expectation step
-    // double *d_data;
-    // cudaMalloc((void **)&d_data, data->n_row * data->n_col * sizeof(double));
-    // cudaMemcpy(d_data, DATA(data), data->n_row * data->n_col * sizeof(double), cudaMemcpyHostToDevice);
+    // float *d_data;
+    // cudaMalloc((void **)&d_data, data->n_row * data->n_col * sizeof(float));
+    // cudaMemcpy(d_data, DATA(data), data->n_row * data->n_col * sizeof(float), cudaMemcpyHostToDevice);
 
     matrix *responsibilities = matrix_zeros(data->n_row, n_components);
 
-    double *d_responsibilities;
-    cudaMalloc((void **)&d_responsibilities, responsibilities->n_row * responsibilities->n_col * sizeof(double));
-    cudaMemcpy(d_responsibilities, DATA(responsibilities), responsibilities->n_row * responsibilities->n_col * sizeof(double), cudaMemcpyHostToDevice);
+    float *d_responsibilities;
+    cudaMalloc((void **)&d_responsibilities, responsibilities->n_row * responsibilities->n_col * sizeof(float));
+    cudaMemcpy(d_responsibilities, DATA(responsibilities), responsibilities->n_row * responsibilities->n_col * sizeof(float), cudaMemcpyHostToDevice);
 
     for (int weight_idx = 0; weight_idx < responsibilities->n_col; weight_idx++)
     {
         /* 3. Estimation of log Gaussian probability: GAUSS */
         /* 4. Computation of weighted log probability: WLP */
         vector *probabilities = pdf(matrix_copy(data), matrix_row_copy(means, weight_idx), covs[weight_idx]);
-        double *d_probabilities;
-        cudaMalloc((void **)&d_probabilities, probabilities->length * sizeof(double));
+        float *d_probabilities;
+        cudaMalloc((void **)&d_probabilities, probabilities->length * sizeof(float));
 
         /* 5. Estimation of log responsibility: LR*/
 
-        double weight = VECTOR_IDX_INTO(weights, weight_idx);
+        float weight = VECTOR_IDX_INTO(weights, weight_idx);
 
         // for (int i = 0; i < data->n_row; i++)
         // {
         dim3 block_size(BLOCK_SIZE);
         dim3 grid_size((data->n_row) / block_size.x + 1);
 
-        cudaMemcpy(d_probabilities, DATA(probabilities), probabilities->length * sizeof(double), cudaMemcpyHostToDevice);
+        cudaMemcpy(d_probabilities, DATA(probabilities), probabilities->length * sizeof(float), cudaMemcpyHostToDevice);
 
         estimate_log_responsibility<<<block_size, grid_size>>>(d_responsibilities, responsibilities->n_col, responsibilities->n_row, weight_idx, weight, d_probabilities, probabilities->length);
         // }
         cudaFree(d_probabilities);
     }
 
-    cudaMemcpy(DATA(responsibilities), d_responsibilities, responsibilities->n_row * responsibilities->n_col * sizeof(double), cudaMemcpyDeviceToHost);
+    cudaMemcpy(DATA(responsibilities), d_responsibilities, responsibilities->n_row * responsibilities->n_col * sizeof(float), cudaMemcpyDeviceToHost);
     cudaFree(d_responsibilities);
 
     normalize_responsibilities(data, responsibilities, n_components);
@@ -89,9 +89,13 @@ void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixtur
 // template <unsigned int blockSize>
 void normalize_responsibilities(matrix *data, matrix *responsibilities, int n_components)
 {
+    float *d_responsibilities;
+    cudaMalloc((void **)&d_responsibilities, responsibilities->n_row * responsibilities->n_col * sizeof(float));
+    cudaMemcpy(d_responsibilities, DATA(responsibilities), responsibilities->n_row * responsibilities->n_col * sizeof(float), cudaMemcpyHostToDevice);
+
     for (int i = 0; i < data->n_row; i++)
     {
-        double sum = vector_sum(matrix_row_view(responsibilities, i));
+        float sum = vector_sum(matrix_row_view(responsibilities, i));
 
         for (int j = 0; j < n_components; j++)
         {
@@ -160,7 +164,7 @@ void estimate_covariance(int n_components, matrix *&data, matrix *&means, matrix
         {
             for (int j = 0; j < sigma->n_col; ++j)
             {
-                double cell_value = 0;
+                float cell_value = 0;
                 for (int row_idx = 0; row_idx < data->n_row; ++row_idx)
                 {
                     cell_value += MATRIX_IDX_INTO(responsibilities, row_idx, component) * MATRIX_IDX_INTO(s[row_idx], i, j);
@@ -190,7 +194,7 @@ void sum_up_responsibilities(vector *&sum_responsibilities, int &j, matrix *resp
     VECTOR_IDX_INTO(sum_responsibilities, j) = vector_sum(matrix_column_copy(responsibilities, j));
 }
 
-__global__ void estimate_log_responsibility(double *responsibilities, int resp_col, int resp_row, int weight_idx, double weight, double *probabilities, int p_length)
+__global__ void estimate_log_responsibility(float *responsibilities, int resp_col, int resp_row, int weight_idx, float weight, float *probabilities, int p_length)
 {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= resp_row || i >= p_length)

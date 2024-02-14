@@ -1,15 +1,15 @@
 #include "matrix_operations.cuh"
 
-__global__ void gemm_tiled(double *A, double *B, double *C, int ARows, int ACols, int BRows, int BCols, int CRows, int CCols)
+__global__ void gemm_tiled(float *A, float *B, float *C, int ARows, int ACols, int BRows, int BCols, int CRows, int CCols)
 {
 
-    double CValue = 0;
+    float CValue = 0;
 
     int Row = blockIdx.y * TILE_DIM + threadIdx.y;
     int Col = blockIdx.x * TILE_DIM + threadIdx.x;
 
-    __shared__ double As[TILE_DIM][TILE_DIM];
-    __shared__ double Bs[TILE_DIM][TILE_DIM];
+    __shared__ float As[TILE_DIM][TILE_DIM];
+    __shared__ float Bs[TILE_DIM][TILE_DIM];
 
     for (int k = 0; k < (TILE_DIM + ACols - 1) / TILE_DIM; k++)
     {
@@ -36,9 +36,9 @@ __global__ void gemm_tiled(double *A, double *B, double *C, int ARows, int ACols
         C[((blockIdx.y * blockDim.y + threadIdx.y) * CCols) + (blockIdx.x * blockDim.x) + threadIdx.x] = CValue;
 }
 
-__global__ void matrix_power(double *A, int n_rows, int n_cols)
+__global__ void matrix_power(float *A, int n_rows, int n_cols)
 {
-    __shared__ double A_shared[TILE_DIM][TILE_DIM];
+    __shared__ float A_shared[TILE_DIM][TILE_DIM];
 
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     int j = blockIdx.y * blockDim.y + threadIdx.y;
@@ -51,7 +51,7 @@ __global__ void matrix_power(double *A, int n_rows, int n_cols)
     }
 }
 
-__global__ void elementwise_pow(double *A, int n_row, int n_col, int power)
+__global__ void elementwise_pow(float *A, int n_row, int n_col, int power)
 {
     int i = blockIdx.y * blockDim.y + threadIdx.y;
     int j = blockIdx.x * blockDim.x + threadIdx.x;
@@ -61,7 +61,7 @@ __global__ void elementwise_pow(double *A, int n_row, int n_col, int power)
     }
 }
 
-__global__ void elementwise_exp(double *A, int n_row, int n_col)
+__global__ void elementwise_exp(float *A, int n_row, int n_col)
 {
     int i = blockIdx.y * blockDim.y + threadIdx.y;
     int j = blockIdx.x * blockDim.x + threadIdx.x;
@@ -71,9 +71,9 @@ __global__ void elementwise_exp(double *A, int n_row, int n_col)
     }
 }
 
-__global__ void transpose(double *odata, double *idata, int width, int height)
+__global__ void transpose(float *odata, float *idata, int width, int height)
 {
-    __shared__ double block[TILE_DIM][TILE_DIM + 1];
+    __shared__ float block[TILE_DIM][TILE_DIM + 1];
 
     // read the matrix tile into shared memory
     // load one element per thread from device memory (idata) and store it
@@ -101,9 +101,9 @@ __global__ void transpose(double *odata, double *idata, int width, int height)
 /**
  * Reduces matrix along rows and returns vector of row sums
  */
-__global__ void reduce_matrix_rows(double *d_matrix, int n_rows, int n_cols, double *d_result)
+__global__ void reduce_matrix_rows(float *d_matrix, int n_rows, int n_cols, float *d_result)
 {
-    __shared__ double block[TILE_DIM][TILE_DIM + 1];
+    __shared__ float block[TILE_DIM][TILE_DIM + 1];
 
     // read the matrix tile into shared memory
     // load one element per thread from device memory (idata) and store it
@@ -119,7 +119,7 @@ __global__ void reduce_matrix_rows(double *d_matrix, int n_rows, int n_cols, dou
     // synchronise to ensure all writes to block[][] have completed
     __syncthreads();
 
-    double sum = 0;
+    float sum = 0;
 
     for (int j = 0; j < n_cols; j++)
     {

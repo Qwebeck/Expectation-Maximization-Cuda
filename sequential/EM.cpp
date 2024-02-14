@@ -36,7 +36,7 @@ void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixtur
 
     for (int i = 0; i < data->n_row; i++)
     {
-        double sum = vector_sum(matrix_row_view(responsibilities, i));
+        float sum = vector_sum(matrix_row_view(responsibilities, i));
         for (int j = 0; j < n_components; j++)
         {
             MATRIX_IDX_INTO(responsibilities, i, j) /= sum;
@@ -96,7 +96,7 @@ void EM(matrix *data, int n_components, matrix **mixture_means, matrix ***mixtur
         {
             for (int j = 0; j < sigma->n_col; ++j)
             {
-                double cell_value = 0;
+                float cell_value = 0;
                 for (int row_idx = 0; row_idx < data->n_row; ++row_idx)
                 {
                     cell_value += MATRIX_IDX_INTO(responsibilities, row_idx, component) * MATRIX_IDX_INTO(s[row_idx], i, j);

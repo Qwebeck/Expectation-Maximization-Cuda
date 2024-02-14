@@ -26,10 +26,10 @@ void append_to_file(char *filename, char *text)
     }
 }
 
-double *read_csv(char *filename, int row_count, int col_count, const char *delim)
+float *read_csv(char *filename, int row_count, int col_count, const char *delim)
 {
     errno = 0;
-    double *matrix = (double *)malloc(row_count * col_count * sizeof(double));
+    float *matrix = (float *)malloc(row_count * col_count * sizeof(float));
     FILE *fp = fopen(filename, "r");
     if (fp == NULL)
     {
@@ -63,7 +63,7 @@ double *read_csv(char *filename, int row_count, int col_count, const char *delim
     return matrix;
 }
 
-void store_csv(char *filename, double *matrix, int row_count, int col_count, const char *delim)
+void store_csv(char *filename, float *matrix, int row_count, int col_count, const char *delim)
 {
     FILE *fp = fopen(filename, "w");
     if (fp == NULL)
@@ -94,9 +94,9 @@ matrix **init_array(int size, matrix *value)
     return result;
 }
 
-double vector_sum(struct vector *v)
+float vector_sum(struct vector *v)
 {
-    double sum = 0;
+    float sum = 0;
     for (int i = 0; i < v->length; i++)
     {
         sum += VECTOR_IDX_INTO(v, i);
@@ -104,9 +104,9 @@ double vector_sum(struct vector *v)
     return sum;
 }
 
-double min_value(double *array, int size)
+float min_value(float *array, int size)
 {
-    double min = array[0];
+    float min = array[0];
     for (int i = 1; i < size; i++)
     {
         if (array[i] < min)
@@ -117,9 +117,9 @@ double min_value(double *array, int size)
     return min;
 }
 
-double max_value(double *array, int size)
+float max_value(float *array, int size)
 {
-    double max = array[0];
+    float max = array[0];
     for (int i = 1; i < size; i++)
     {
         if (array[i] > max)
@@ -130,9 +130,9 @@ double max_value(double *array, int size)
     return max;
 }
 
-double mean_value(double *array, int size)
+float mean_value(float *array, int size)
 {
-    double sum = 0;
+    float sum = 0;
     for (int i = 0; i < size; i++)
     {
         sum += array[i];
@@ -140,28 +140,28 @@ double mean_value(double *array, int size)
     return sum / size;
 }
 
-double std_value(double *array, int size)
+float std_value(float *array, int size)
 {
-    double m = mean_value(array, size);
-    double sum = 0;
+    float m = mean_value(array, size);
+    float sum = 0;
     for (int i = 0; i < size; i++)
     {
         sum += pow(array[i] - m, 2);
     }
     return sqrt(sum / size);
 }
-char *describe(double *array, int size)
+char *describe(float *array, int size)
 {
-    double min = min_value(array, size);
-    double max = max_value(array, size);
-    double mean = mean_value(array, size);
-    double std = std_value(array, size);
+    float min = min_value(array, size);
+    float max = max_value(array, size);
+    float mean = mean_value(array, size);
+    float std = std_value(array, size);
     char *result = (char *)malloc(100 * sizeof(char));
     sprintf(result, "min: %f, max: %f, mean: %f, std: %f", min, max, mean, std);
     return result;
 }
 
-void print_array(double *array, int size)
+void print_array(float *array, int size)
 {
     for (int i = 0; i < size; i++)
     {

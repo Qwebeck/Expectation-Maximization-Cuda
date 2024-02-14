@@ -45,7 +45,7 @@ PSD calculate_positive_semidefinite_matrix(matrix *data, int n_cols, int n_rows)
             MATRIX_IDX_INTO(U, i, j) = MATRIX_IDX_INTO(eigen->eigenvectors, i, j) * VECTOR_IDX_INTO(s_pinv, j);
         }
     }
-    double log_pdet = 0;
+    float log_pdet = 0;
     for (int i = 0; i < n_cols; i++)
     {
         log_pdet += log(VECTOR_IDX_INTO(eigen->eigenvalues, i));
@@ -57,9 +57,9 @@ PSD calculate_positive_semidefinite_matrix(matrix *data, int n_cols, int n_rows)
         .rank = n_cols};
 }
 
-vector *pinv_1d(vector *v, double eps)
+vector *pinv_1d(vector *v, float eps)
 {
-    // double *result = (double *)init_array(size, 0); // fix
+    // float *result = (float *)init_array(size, 0); // fix
     vector *result = vector_zeros(v->length);
     for (int i = 0; i < v->length; i++)
     {
@@ -71,7 +71,7 @@ vector *pinv_1d(vector *v, double eps)
     return result;
 }
 
-vector *calculate_log_pdf(matrix *x, vector *mean, matrix *U, double log_pdet, int rank)
+vector *calculate_log_pdf(matrix *x, vector *mean, matrix *U, float log_pdet, int rank)
 {
     matrix *dev = matrix_new(x->n_row, x->n_col);
     for (int i = 0; i < dev->n_row; ++i)
@@ -87,7 +87,7 @@ vector *calculate_log_pdf(matrix *x, vector *mean, matrix *U, double log_pdet, i
     {
         for (int j = 0; j < mahalanobis_distance->n_col; j++)
         {
-            double sq = pow(MATRIX_IDX_INTO(mahalanobis_distance, i, j), 2);
+            float sq = pow(MATRIX_IDX_INTO(mahalanobis_distance, i, j), 2);
             MATRIX_IDX_INTO(mahalanobis_distance, i, j) = sq;
         }
     }

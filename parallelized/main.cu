@@ -25,7 +25,7 @@ int main(int argc, char **argv)
     int max_iter = atoi(argv[7]);
     char *time_fname = argv[8];
 
-    double *csv_contet = read_csv(filename, row_count, D);
+    float *csv_contet = read_csv(filename, row_count, D);
 
     matrix *data = matrix_from_array(csv_contet, row_count, D);
 
@@ -44,7 +44,7 @@ int main(int argc, char **argv)
     sprintf(timer_info, "%d, %f", row_count, cuTimer.elapsedTime);
     append_to_file(time_fname, timer_info);
 
-    double means_array[n_components * D];
+    float means_array[n_components * D];
     for (int i = 0; i < n_components; i++)
     {
         for (int j = 0; j < D; j++)
@@ -53,7 +53,7 @@ int main(int argc, char **argv)
         }
     }
     store_csv(means_fname, means_array, n_components, D);
-    double covs_array[n_components * D * D];
+    float covs_array[n_components * D * D];
     for (int i = 0; i < n_components; i++)
     {
         for (int j = 0; j < D; j++)
