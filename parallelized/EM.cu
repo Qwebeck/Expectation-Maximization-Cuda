@@ -100,62 +100,29 @@ void normalize_responsibilities(matrix *data, matrix *responsibilities, int n_co
     }
 }
 
-template <unsigned int blockSize>
-__device__ void warpReduce(volatile int *sdata, unsigned int tid)
-{
-    if (blockSize >= 64)
-        sdata[tid] += sdata[tid + 32];
-    if (blockSize >= 32)
-        sdata[tid] += sdata[tid + 16];
-    if (blockSize >= 16)
-        sdata[tid] += sdata[tid + 8];
-    if (blockSize >= 8)
-        sdata[tid] += sdata[tid + 4];
-    if (blockSize >= 4)
-        sdata[tid] += sdata[tid + 2];
-    if (blockSize >= 2)
-        sdata[tid] += sdata[tid + 1];
-}
-template <unsigned int blockSize>
-__global__ void reduce_row(int *g_idata, int *g_odata, unsigned int n)
+/**
+ * CUDA kernel which reduces the matrix columns to a single column
+
+ */
+__global__ void reduce_rows_to_vector(int *g_idata, int *g_odata, int n_col)
 {
     extern __shared__ int sdata[];
+    // each thread loads one element from global to shared mem
     unsigned int tid = threadIdx.x;
-    unsigned int i = blockIdx.x * (blockSize * 2) + tid;
-    unsigned int gridSize = blockSize * 2 * gridDim.x;
-    sdata[tid] = 0;
-    while (i < n)
-    {
-        sdata[tid] += g_idata[i] + g_idata[i + blockSize];
-        i += gridSize;
-    }
+    unsigned int i = blockIdx.x * blockDim.x + threadIdx.x;
+    sdata[tid] = g_idata[i];
     __syncthreads();
-    if (blockSize >= 512)
+    // do reduction in shared mem
+    for (unsigned int s = 1; s < blockDim.x; s *= 2)
     {
-        if (tid < 256)
+        int index = 2 * s * tid;
+        if (index < blockDim.x)
         {
-            sdata[tid] += sdata[tid + 256];
+            sdata[index] += sdata[index + s];
         }
         __syncthreads();
     }
-    if (blockSize >= 256)
-    {
-        if (tid < 128)
-        {
-            sdata[tid] += sdata[tid + 128];
-        }
-        __syncthreads();
-    }
-    if (blockSize >= 128)
-    {
-        if (tid < 64)
-        {
-            sdata[tid] += sdata[tid + 64];
-        }
-        __syncthreads();
-    }
-    if (tid < 32)
-        warpReduce(sdata, tid);
+    // write result for this block to global mem
     if (tid == 0)
         g_odata[blockIdx.x] = sdata[0];
 }
