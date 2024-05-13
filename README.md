@@ -1,5 +1,6 @@
 # Summary 
-Final project for GP-GPU course at École nationale supérieure d'informatique et de mathématiques appliquées de Grenoble
+Final project for GP-GPU course at École nationale supérieure d'informatique et de mathématiques appliquées de Grenoble.
+For project details, check [GPU-report file](https://github.com/Qwebeck/Expectation-Maximization-Cuda/blob/main/GPU_report.pdf).
 
 # How to run
 1. Move project code to GPU_REMOTE
